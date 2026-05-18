@@ -6,7 +6,7 @@
     <title>Jungle Multiverse</title>
     <style>
         body { margin: 0; background: #0a0a0a url('fondo.png') no-repeat center center fixed; background-size: cover; color: white; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
-        .glass-panel { background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; width: 90%; max-width: 350px; margin-top: 15px; z-index: 10; }
+        .glass-panel { background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; width: 90%; max-width: 350px; margin-top: 15px; z-index: 10; }
         
         #name-popup { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
         .input-field { padding: 15px; font-size: 1.2rem; border-radius: 14px; border: 2px solid #EC0000; margin-bottom: 15px; width: 80%; text-align: center; background: white; color: #1a1a1a; font-weight: bold; outline: none; }
@@ -17,7 +17,6 @@
         .color-btn { width: 38px; height: 38px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: 0.2s; }
         .color-btn.active { border-color: white; transform: scale(1.2); }
 
-        /* Efecto Warp/Portal */
         #canvas-container { position: relative; width: 100%; height: 350px; background: rgba(0,0,0,0.4); border-radius: 18px; overflow: hidden; touch-action: none; transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); }
         .fly-out { transform: scale(0.1) rotate(720deg); opacity: 0; filter: blur(10px); }
         canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -31,7 +30,6 @@
         .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
         .btn-neon { background: linear-gradient(45deg, #EC0000, #E89C31, #4EB1B3, #A24281); background-size: 200%; animation: gradientBG 4s infinite linear; }
         
-        /* Vista AR Native */
         #ar-view { display: none; position: fixed; inset: 0; z-index: 50; background: black; }
         video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
         #ar-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; animation: floatAR 3s ease-in-out infinite; }
@@ -39,8 +37,6 @@
         
         @keyframes gradientBG { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
         @keyframes floatAR { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
-        
-        /* Indicador de Agitación */
         #shake-indicator { color: #EC0000; font-weight: bold; margin-top: 10px; display: none; animation: pulse 0.5s infinite alternate; }
         @keyframes pulse { from { opacity: 0.5; transform: scale(1); } to { opacity: 1; transform: scale(1.1); } }
     </style>
@@ -56,7 +52,7 @@
             <option value="streaming">En Casa (Streaming)</option>
         </select>
         <input type="text" id="name-input" class="input-field" placeholder="Tu Apodo" maxlength="12">
-        <button class="btn-primary" onclick="initApp()">COMENZAR Y HABILITAR SENSORES</button>
+        <button class="btn-primary" onclick="initApp()">COMENZAR</button>
     </div>
 
     <div id="ar-view">
@@ -113,82 +109,86 @@
         let lastX, lastY, lastZ;
         let isShaking = false;
 
-        // Inicialización y Permisos (Crucial para iOS)
         function initApp() {
             const input = document.getElementById('name-input');
             if(input.value.trim() === "") { alert("Ingresa tu apodo"); return; }
             userName = input.value.trim();
             currentMode = document.getElementById('mode-select').value;
             
-            // Solicitar permisos de acelerómetro
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 DeviceMotionEvent.requestPermission()
-                    .then(permissionState => { if (permissionState === 'granted') window.addEventListener('devicemotion', handleMotion); })
+                    .then(state => { if (state === 'granted') window.addEventListener('devicemotion', handleMotion); })
                     .catch(console.error);
             } else {
-                window.addEventListener('devicemotion', handleMotion); // Android / navegadores antiguos
+                window.addEventListener('devicemotion', handleMotion);
             }
             document.getElementById('name-popup').style.display = 'none';
         }
 
-        // Lógica de Agitación (Shake Mechanic)
         function handleMotion(event) {
             if(!myAvatarRef) return;
             let acc = event.accelerationIncludingGravity;
             if(!acc) return;
-            
             if(lastX !== undefined) {
                 let delta = Math.abs(acc.x - lastX + acc.y - lastY + acc.z - lastZ);
-                if(delta > 15) { // Umbral de agitación
-                    if(!isShaking) {
-                        isShaking = true;
-                        document.getElementById('shake-indicator').style.display = 'block';
-                        myAvatarRef.update({ isShaking: true });
-                        if(navigator.vibrate) navigator.vibrate(100);
-                        
-                        setTimeout(() => {
-                            isShaking = false;
-                            document.getElementById('shake-indicator').style.display = 'none';
-                            myAvatarRef.update({ isShaking: false });
-                        }, 1000); // Mantiene el estado 1 segundo
-                    }
+                if(delta > 15 && !isShaking) {
+                    isShaking = true;
+                    document.getElementById('shake-indicator').style.display = 'block';
+                    myAvatarRef.update({ isShaking: true });
+                    if(navigator.vibrate) navigator.vibrate(100);
+                    setTimeout(() => {
+                        isShaking = false;
+                        document.getElementById('shake-indicator').style.display = 'none';
+                        myAvatarRef.update({ isShaking: false });
+                    }, 1000);
                 }
             }
             lastX = acc.x; lastY = acc.y; lastZ = acc.z;
         }
 
-        // Canvas Setup
         const canvas = document.getElementById('paintCanvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('canvas-container');
-        setTimeout(() => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; }, 100);
+        
+        function resizeCanvas() { canvas.width = container.clientWidth; canvas.height = container.clientHeight; }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
 
         let drawing = false, paths = [], currentPath = [], currentColor = '#EC0000';
         ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
         function setColor(color, btn) { currentColor = color; document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
-        const startDrawing = (e) => { document.getElementById('drawing-guide').style.opacity = '0'; drawing = true; currentPath = []; paths.push({ color: currentColor, points: currentPath }); addPoint(e); };
+        
+        const startDrawing = (e) => { 
+            document.getElementById('drawing-guide').style.opacity = '0'; 
+            drawing = true; currentPath = []; paths.push({ color: currentColor, points: currentPath }); addPoint(e); 
+        };
         const draw = (e) => { if (!drawing) return; addPoint(e); };
         const stopDrawing = () => { drawing = false; };
 
         function addPoint(e) {
             const rect = canvas.getBoundingClientRect();
-            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            let clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+            if (clientX === undefined || clientY === undefined) return;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
             currentPath.push({x, y}); redrawAll();
         }
 
         function redrawAll() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             paths.forEach(pathObj => {
-                if(pathObj.points.length > 0) { ctx.strokeStyle = pathObj.color; ctx.beginPath(); ctx.moveTo(pathObj.points[0].x, pathObj.points[0].y); pathObj.points.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); }
+                if(pathObj.points.length > 0) { 
+                    ctx.strokeStyle = pathObj.color; ctx.beginPath(); 
+                    ctx.moveTo(pathObj.points[0].x, pathObj.points[0].y); 
+                    pathObj.points.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); 
+                }
             });
         }
         function clearCanvas() { paths = []; redrawAll(); document.getElementById('drawing-guide').style.opacity = '0.4'; }
 
-        // Envío con Efecto Portal/Warp
         function sendDrawing() {
-            if (paths.length === 0) return;
+            if (paths.length === 0) { alert("¡Dibuja tu rostro primero!"); return; }
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
             container.classList.add('fly-out');
 
@@ -196,7 +196,6 @@
                 const drawingData = { paths, userName, timestamp: Date.now(), message: "", isSpinning: false, isStarPower: false, isShaking: false, radarPing: 0 };
                 myAvatarRef = database.ref('avatars_' + currentMode).push();
                 myAvatarRef.set(drawingData).then(() => {
-                    // Guardar imagen para AR
                     document.getElementById('ar-overlay').src = canvas.toDataURL();
                     document.getElementById('draw-view').style.display = 'none';
                     document.getElementById('interaction-view').style.display = 'flex';
@@ -204,13 +203,12 @@
             }, 800);
         }
 
-        // WebAR (Cámara Overlay Nativa)
         async function openAR() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 document.getElementById('camera-feed').srcObject = stream;
                 document.getElementById('ar-view').style.display = 'block';
-            } catch (err) { alert("No se pudo acceder a la cámara."); }
+            } catch (err) { alert("No se pudo iniciar la cámara."); }
         }
         function closeAR() {
             const stream = document.getElementById('camera-feed').srcObject;
@@ -218,16 +216,20 @@
             document.getElementById('ar-view').style.display = 'none';
         }
 
-        function triggerRadar() { if(myAvatarRef) { myAvatarRef.update({ radarPing: Date.now() }); if(navigator.vibrate) navigator.vibrate([50, 100, 50]); } }
+        function triggerRadar() { if(myAvatarRef) myAvatarRef.update({ radarPing: Date.now() }); }
         function sendMessage() { const text = document.getElementById('chat-box').value; if(text.trim() !== "" && myAvatarRef) { myAvatarRef.update({ message: text.trim(), messageTime: Date.now() }); document.getElementById('chat-box').value = ""; } }
         function toggleMixColor() { if(myAvatarRef) { isMixColor = !isMixColor; myAvatarRef.update({ isStarPower: isMixColor }); } }
         
         const btnSpin = document.getElementById('btn-spin');
         btnSpin.addEventListener('touchstart', (e) => { e.preventDefault(); if(myAvatarRef) myAvatarRef.update({ isSpinning: true }); }, { passive: false });
+        btnSpin.addEventListener('mousedown', () => { if(myAvatarRef) myAvatarRef.update({ isSpinning: true }); });
         window.addEventListener('touchend', () => { if(myAvatarRef) myAvatarRef.update({ isSpinning: false }); });
+        window.addEventListener('mouseup', () => { if(myAvatarRef) myAvatarRef.update({ isSpinning: false }); });
 
         function resetApp() { clearCanvas(); isMixColor = false; container.classList.remove('fly-out'); document.getElementById('interaction-view').style.display = 'none'; document.getElementById('draw-view').style.display = 'flex'; }
-        canvas.addEventListener('touchstart', startDrawing); canvas.addEventListener('touchmove', draw); canvas.addEventListener('touchend', stopDrawing);
+        
+        canvas.addEventListener('mousedown', startDrawing); canvas.addEventListener('mousemove', draw); window.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('touchstart', startDrawing); canvas.addEventListener('touchmove', draw); window.addEventListener('touchend', stopDrawing);
     </script>
 </body>
 </html>
