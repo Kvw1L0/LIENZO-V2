@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jungle Multiverse</title>
+    <style>
+        body { margin: 0; background: #0a0a0a url('fondo.png') no-repeat center center fixed; background-size: cover; color: white; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        .glass-panel { background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; width: 90%; max-width: 350px; margin-top: 15px; z-index: 10; }
+        
+        #name-popup { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .input-field { padding: 15px; font-size: 1.2rem; border-radius: 14px; border: 2px solid #EC0000; margin-bottom: 15px; width: 80%; text-align: center; background: white; color: #1a1a1a; font-weight: bold; outline: none; }
+        select.input-field { appearance: none; }
+        .btn-primary { padding: 16px 45px; background: #EC0000; color: white; border: none; border-radius: 14px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
+
+        .tools-panel { display: flex; gap: 12px; margin-bottom: 15px; }
+        .color-btn { width: 38px; height: 38px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: 0.2s; }
+        .color-btn.active { border-color: white; transform: scale(1.2); }
+
+        /* Efecto Warp/Portal */
+        #canvas-container { position: relative; width: 100%; height: 350px; background: rgba(0,0,0,0.4); border-radius: 18px; overflow: hidden; touch-action: none; transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); }
+        .fly-out { transform: scale(0.1) rotate(720deg); opacity: 0; filter: blur(10px); }
+        canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .guide { position: absolute; inset: 0; pointer-events: none; opacity: 0.4; display: flex; justify-content: center; align-items: center; transition: opacity 0.4s; }
+        
+        .controls { width: 100%; margin-top: 15px; display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
+        .btn-controls { padding: 14px; border: none; border-radius: 14px; font-weight: bold; cursor: pointer; font-size: 1rem; color: white; transition: 0.2s; }
+        .btn-controls:active { transform: scale(0.95); }
+
+        #interaction-view { display: none; }
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+        .btn-neon { background: linear-gradient(45deg, #EC0000, #E89C31, #4EB1B3, #A24281); background-size: 200%; animation: gradientBG 4s infinite linear; }
+        
+        /* Vista AR Native */
+        #ar-view { display: none; position: fixed; inset: 0; z-index: 50; background: black; }
+        video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        #ar-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; animation: floatAR 3s ease-in-out infinite; }
+        .close-ar { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: #EC0000; padding: 15px 30px; border-radius: 50px; font-weight: bold; color: white; border: none; z-index: 60; }
+        
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        @keyframes floatAR { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+        
+        /* Indicador de Agitación */
+        #shake-indicator { color: #EC0000; font-weight: bold; margin-top: 10px; display: none; animation: pulse 0.5s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.5; transform: scale(1); } to { opacity: 1; transform: scale(1.1); } }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+
+    <div id="name-popup">
+        <h1 style="color: #EC0000; margin-bottom: 5px;">MULTIVERSO</h1>
+        <select id="mode-select" class="input-field">
+            <option value="presencial">Evento (Presencial)</option>
+            <option value="streaming">En Casa (Streaming)</option>
+        </select>
+        <input type="text" id="name-input" class="input-field" placeholder="Tu Apodo" maxlength="12">
+        <button class="btn-primary" onclick="initApp()">COMENZAR Y HABILITAR SENSORES</button>
+    </div>
+
+    <div id="ar-view">
+        <video id="camera-feed" autoplay playsinline></video>
+        <img id="ar-overlay" src="">
+        <button class="close-ar" onclick="closeAR()">CERRAR CÁMARA</button>
+    </div>
+
+    <div id="draw-view" class="glass-panel">
+        <h3 style="margin: 0 0 15px 0;">DIBUJA TU ROSTRO</h3>
+        <div class="tools-panel">
+            <button class="color-btn active" style="background: #EC0000;" onclick="setColor('#EC0000', this)"></button>
+            <button class="color-btn" style="background: #E89C31;" onclick="setColor('#E89C31', this)"></button>
+            <button class="color-btn" style="background: #4EB1B3;" onclick="setColor('#4EB1B3', this)"></button>
+            <button class="color-btn" style="background: #A24281;" onclick="setColor('#A24281', this)"></button>
+            <button class="color-btn" style="background: #4EA180;" onclick="setColor('#4EA180', this)"></button>
+        </div>
+        <div id="canvas-container">
+            <div class="guide" id="drawing-guide">
+                <svg width="200" height="250" viewBox="0 0 100 120"><path d="M 25 120 Q 25 90 50 90 Q 75 90 75 120 M 50 90 Q 80 90 80 45 Q 80 10 50 10 Q 20 10 20 45 Q 20 90 50 90" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-dasharray="5,5"/></svg>
+            </div>
+            <canvas id="paintCanvas"></canvas>
+        </div>
+        <div class="controls">
+            <button class="btn-controls" style="background: #333;" onclick="clearCanvas()">BORRAR</button>
+            <button class="btn-controls" style="background: #EC0000;" onclick="sendDrawing()">¡ENVIAR AL PORTAL!</button>
+        </div>
+    </div>
+
+    <div id="interaction-view" class="glass-panel">
+        <h3 style="color: #4EB1B3; margin: 0;">¡ESTÁS EN PANTALLA!</h3>
+        <p id="shake-indicator">¡AGITANDO EL TELÉFONO! ⚡</p>
+        
+        <button class="btn-controls" style="background: #E89C31; width: 100%; margin: 15px 0;" onclick="triggerRadar()">📍 ¡ENCONTRAR MI DIBUJO!</button>
+        <button class="btn-controls" style="background: #A24281; width: 100%; margin-bottom: 15px;" onclick="openAR()">📸 VER EN MI MUNDO (AR)</button>
+
+        <input type="text" id="chat-box" class="input-field" style="width: calc(100% - 30px); padding: 10px; margin-bottom: 10px;" placeholder="Di algo..." maxlength="25">
+        <button class="btn-controls" style="background: #4EB1B3; width: 100%; margin-bottom: 15px;" onclick="sendMessage()">ENVIAR MENSAJE</button>
+
+        <div class="action-grid">
+            <button class="btn-controls" style="background: #555;" id="btn-spin">🔄 GIRAR</button>
+            <button class="btn-controls btn-neon" onclick="toggleMixColor()">🌟 ESTRELLA</button>
+        </div>
+        
+        <button style="background: transparent; border: none; color: #aaa; margin-top: 25px; text-decoration: underline;" onclick="resetApp()">Dibujar de nuevo</button>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyCC_TF76FJatTPEMjZTzC9eiStnsrDd1qc", authDomain: "jungle-multiverse.firebaseapp.com", databaseURL: "https://jungle-multiverse-default-rtdb.firebaseio.com", projectId: "jungle-multiverse", storageBucket: "jungle-multiverse.firebasestorage.app", messagingSenderId: "648498270563", appId: "1:648498270563:web:76384ba26c1ca4e38d8356" };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let userName = "", currentMode = "", myAvatarRef = null, isMixColor = false;
+        let lastX, lastY, lastZ;
+        let isShaking = false;
+
+        // Inicialización y Permisos (Crucial para iOS)
+        function initApp() {
+            const input = document.getElementById('name-input');
+            if(input.value.trim() === "") { alert("Ingresa tu apodo"); return; }
+            userName = input.value.trim();
+            currentMode = document.getElementById('mode-select').value;
+            
+            // Solicitar permisos de acelerómetro
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(permissionState => { if (permissionState === 'granted') window.addEventListener('devicemotion', handleMotion); })
+                    .catch(console.error);
+            } else {
+                window.addEventListener('devicemotion', handleMotion); // Android / navegadores antiguos
+            }
+            document.getElementById('name-popup').style.display = 'none';
+        }
+
+        // Lógica de Agitación (Shake Mechanic)
+        function handleMotion(event) {
+            if(!myAvatarRef) return;
+            let acc = event.accelerationIncludingGravity;
+            if(!acc) return;
+            
+            if(lastX !== undefined) {
+                let delta = Math.abs(acc.x - lastX + acc.y - lastY + acc.z - lastZ);
+                if(delta > 15) { // Umbral de agitación
+                    if(!isShaking) {
+                        isShaking = true;
+                        document.getElementById('shake-indicator').style.display = 'block';
+                        myAvatarRef.update({ isShaking: true });
+                        if(navigator.vibrate) navigator.vibrate(100);
+                        
+                        setTimeout(() => {
+                            isShaking = false;
+                            document.getElementById('shake-indicator').style.display = 'none';
+                            myAvatarRef.update({ isShaking: false });
+                        }, 1000); // Mantiene el estado 1 segundo
+                    }
+                }
+            }
+            lastX = acc.x; lastY = acc.y; lastZ = acc.z;
+        }
+
+        // Canvas Setup
+        const canvas = document.getElementById('paintCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        setTimeout(() => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; }, 100);
+
+        let drawing = false, paths = [], currentPath = [], currentColor = '#EC0000';
+        ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+        function setColor(color, btn) { currentColor = color; document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+        const startDrawing = (e) => { document.getElementById('drawing-guide').style.opacity = '0'; drawing = true; currentPath = []; paths.push({ color: currentColor, points: currentPath }); addPoint(e); };
+        const draw = (e) => { if (!drawing) return; addPoint(e); };
+        const stopDrawing = () => { drawing = false; };
+
+        function addPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            currentPath.push({x, y}); redrawAll();
+        }
+
+        function redrawAll() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            paths.forEach(pathObj => {
+                if(pathObj.points.length > 0) { ctx.strokeStyle = pathObj.color; ctx.beginPath(); ctx.moveTo(pathObj.points[0].x, pathObj.points[0].y); pathObj.points.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); }
+            });
+        }
+        function clearCanvas() { paths = []; redrawAll(); document.getElementById('drawing-guide').style.opacity = '0.4'; }
+
+        // Envío con Efecto Portal/Warp
+        function sendDrawing() {
+            if (paths.length === 0) return;
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+            container.classList.add('fly-out');
+
+            setTimeout(() => {
+                const drawingData = { paths, userName, timestamp: Date.now(), message: "", isSpinning: false, isStarPower: false, isShaking: false, radarPing: 0 };
+                myAvatarRef = database.ref('avatars_' + currentMode).push();
+                myAvatarRef.set(drawingData).then(() => {
+                    // Guardar imagen para AR
+                    document.getElementById('ar-overlay').src = canvas.toDataURL();
+                    document.getElementById('draw-view').style.display = 'none';
+                    document.getElementById('interaction-view').style.display = 'flex';
+                });
+            }, 800);
+        }
+
+        // WebAR (Cámara Overlay Nativa)
+        async function openAR() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                document.getElementById('camera-feed').srcObject = stream;
+                document.getElementById('ar-view').style.display = 'block';
+            } catch (err) { alert("No se pudo acceder a la cámara."); }
+        }
+        function closeAR() {
+            const stream = document.getElementById('camera-feed').srcObject;
+            if(stream) stream.getTracks().forEach(track => track.stop());
+            document.getElementById('ar-view').style.display = 'none';
+        }
+
+        function triggerRadar() { if(myAvatarRef) { myAvatarRef.update({ radarPing: Date.now() }); if(navigator.vibrate) navigator.vibrate([50, 100, 50]); } }
+        function sendMessage() { const text = document.getElementById('chat-box').value; if(text.trim() !== "" && myAvatarRef) { myAvatarRef.update({ message: text.trim(), messageTime: Date.now() }); document.getElementById('chat-box').value = ""; } }
+        function toggleMixColor() { if(myAvatarRef) { isMixColor = !isMixColor; myAvatarRef.update({ isStarPower: isMixColor }); } }
+        
+        const btnSpin = document.getElementById('btn-spin');
+        btnSpin.addEventListener('touchstart', (e) => { e.preventDefault(); if(myAvatarRef) myAvatarRef.update({ isSpinning: true }); }, { passive: false });
+        window.addEventListener('touchend', () => { if(myAvatarRef) myAvatarRef.update({ isSpinning: false }); });
+
+        function resetApp() { clearCanvas(); isMixColor = false; container.classList.remove('fly-out'); document.getElementById('interaction-view').style.display = 'none'; document.getElementById('draw-view').style.display = 'flex'; }
+        canvas.addEventListener('touchstart', startDrawing); canvas.addEventListener('touchmove', draw); canvas.addEventListener('touchend', stopDrawing);
+    </script>
+</body>
+</html>
