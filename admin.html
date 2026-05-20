@@ -9,18 +9,19 @@
         .panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 90%; max-width: 450px; }
         h2 { color: #EC0000; text-align: center; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        button { padding: 12px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: #333; color: white; }
+        button { padding: 12px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: #333; color: white; transition: 0.2s; }
         button.active { background: #EC0000; transform: scale(0.98); }
         .btn-flash { background: #4EB1B3; } .btn-flash.active { background: white; color: #4EB1B3; }
-        select { width: 100%; padding: 12px; border-radius: 10px; margin-bottom: 10px; background: white; color: black; font-weight: bold; }
+        select { width: 100%; padding: 12px; border-radius: 10px; margin-bottom: 10px; background: white; color: black; font-weight: bold; outline: none; }
     </style>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
     <div class="panel">
-        <h2>CONTROL MASTER V6</h2>
+        <h2>CONTROL MASTER EVENTO</h2>
         
+        <p style="text-align:center; font-size: 0.9rem;">FÍSICAS (Afecta ambas salas)</p>
         <div class="grid">
             <button id="frozen" onclick="toggle('frozen')">CONGELAR</button>
             <button id="formation" onclick="toggle('formation')">FORMACIÓN</button>
@@ -30,6 +31,7 @@
             <button id="spinAll" onclick="toggle('spinAll')">GIRAR TODO</button>
         </div>
 
+        <p style="text-align:center; font-size: 0.9rem;">EVENTOS FLASH</p>
         <div class="grid">
             <button class="btn-flash" id="meteorShower" onclick="toggle('meteorShower')">☄️ METEORITOS</button>
             <button class="btn-flash" id="colorInvasion" onclick="toggle('colorInvasion')">🩸 INVASIÓN ROJA</button>
@@ -37,9 +39,9 @@
 
         <hr style="opacity: 0.2; margin: 20px 0;">
         <select id="user-list"><option value="">-- Quitar Spotlight --</option></select>
-        <button style="background:#E89C31; width:100%; color:white; padding:12px; border:none; font-weight:bold; border-radius:10px;" onclick="applyZoom()">APLICAR SPOTLIGHT</button>
+        <button style="background:#E89C31; width:100%; color:white; padding:12px; border:none; font-weight:bold; border-radius:10px; margin-bottom: 20px;" onclick="applyZoom()">APLICAR SPOTLIGHT</button>
 
-        <button style="background:transparent; border: 1px solid #ff4444; color:#ff4444; margin-top:30px; width:100%; padding:15px; border-radius:10px; cursor:pointer;" onclick="resetAll()">🔥 BORRAR TODO (Salas P y S)</button>
+        <button style="background:transparent; border: 1px solid #ff4444; color:#ff4444; width:100%; padding:15px; border-radius:10px; cursor:pointer;" onclick="resetAll()">🔥 BORRAR TODO (Presencial y Streaming)</button>
     </div>
 
     <script>
@@ -50,20 +52,41 @@
         let currentState = {};
         database.ref('gameState').on('value', (snap) => {
             currentState = snap.val() || {};
-            document.querySelectorAll('button').forEach(btn => { if(btn.id) btn.className = currentState[btn.id] ? (btn.classList.contains('btn-flash') ? 'btn-flash active' : 'active') : (btn.classList.contains('btn-flash') ? 'btn-flash' : ''); });
+            document.querySelectorAll('button').forEach(btn => { 
+                if(btn.id) btn.className = currentState[btn.id] ? (btn.classList.contains('btn-flash') ? 'btn-flash active' : 'active') : (btn.classList.contains('btn-flash') ? 'btn-flash' : ''); 
+            });
         });
 
         function fetchUsers() {
             const selectBox = document.getElementById('user-list');
+            const currentSelected = currentState.zoomTargetId;
             selectBox.innerHTML = '<option value="">-- Quitar Spotlight --</option>';
-            database.ref('avatars_presencial').once('value', (snap) => { if(snap.exists()) snap.forEach(c => selectBox.innerHTML += `<option value="${c.key}">[P] ${c.val().userName}</option>`); });
-            database.ref('avatars_streaming').once('value', (snap) => { if(snap.exists()) snap.forEach(c => selectBox.innerHTML += `<option value="${c.key}">[S] ${c.val().userName}</option>`); });
+            
+            database.ref('avatars_presencial').once('value', (snap) => { 
+                if(snap.exists()) snap.forEach(c => {
+                    const sel = (c.key === currentSelected) ? "selected" : "";
+                    selectBox.innerHTML += `<option value="${c.key}" ${sel}>[P] ${c.val().userName}</option>`;
+                }); 
+            });
+            database.ref('avatars_streaming').once('value', (snap) => { 
+                if(snap.exists()) snap.forEach(c => {
+                    const sel = (c.key === currentSelected) ? "selected" : "";
+                    selectBox.innerHTML += `<option value="${c.key}" ${sel}>[S] ${c.val().userName}</option>`;
+                }); 
+            });
         }
         setInterval(fetchUsers, 5000); fetchUsers();
 
         function toggle(key) { database.ref('gameState').update({ [key]: !currentState[key] }); }
         function applyZoom() { database.ref('gameState').update({ zoomTargetId: document.getElementById('user-list').value || null }); }
-        function resetAll() { if(confirm("¿VACIAR EL MULTIVERSO?")) { database.ref('avatars_presencial').remove(); database.ref('avatars_streaming').remove(); database.ref('gameState').set({}); setTimeout(fetchUsers, 1000); } }
+        function resetAll() { 
+            if(confirm("¿VACIAR AMBAS SALAS DEL MULTIVERSO?")) { 
+                database.ref('avatars_presencial').remove(); 
+                database.ref('avatars_streaming').remove(); 
+                database.ref('gameState').set({}); 
+                setTimeout(fetchUsers, 1000); 
+            } 
+        }
     </script>
 </body>
 </html>
