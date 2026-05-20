@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Display - Presencial Master</title>
+    <title>Display - PRESENCIAL</title>
     <style>
         body { margin: 0; background: #050505; overflow: hidden; }
         canvas { display: block; }
@@ -61,11 +61,8 @@
                 this.isSpinning = data.isSpinning || false; this.isStarPower = data.isStarPower || false;
                 this.isShaking = data.isShaking || false;
                 
-                // Distribución aleatoria real por todo el lienzo
                 this.x = Math.random() * (canvas.width - 300) + 150; 
                 this.y = Math.random() * (canvas.height - 300) + 150;
-                
-                // Fuerzas de empuje constantes
                 const angle = Math.random() * Math.PI * 2;
                 this.vx = Math.cos(angle) * (Math.random() * 2 + 2); 
                 this.vy = Math.sin(angle) * (Math.random() * 2 + 2);
@@ -110,7 +107,6 @@
                     let ty = Math.floor(this.index/cols) * (canvas.height/cols) + (canvas.height/cols/2);
                     this.x += (tx - this.x) * 0.1; this.y += (ty - this.y) * 0.1;
                 } else if (!globalState.frozen) {
-                    // DESPLAZAMIENTO FLOTANTE CONSTANTE POR TODO EL ESPACIO
                     this.x += this.vx; this.y += this.vy;
                     const margin = 100; 
                     if (this.x < margin) { this.x = margin; this.vx *= -1; }
@@ -156,7 +152,6 @@
                 ctx.fillText(this.name.toUpperCase(), 0, 190);
                 ctx.restore();
                 
-                // Cuadro de texto corregido (Sin roundRect para evitar incompatibilidades de navegadores)
                 if (this.message !== "" && (Date.now() - this.messageTime) < 6000) {
                     ctx.save(); ctx.translate(drawX, drawY);
                     ctx.fillStyle = "white"; ctx.beginPath();
@@ -171,6 +166,7 @@
             }
         }
 
+        // --- CONEXIÓN A LA CARPETA PRESENCIAL ---
         const ROOT_NODE = 'avatars_presencial'; 
 
         database.ref(ROOT_NODE).on('child_added', (snap) => avatars.push(new Avatar(snap.val(), snap.key, avatars.length)));
