@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Display - STREAMING</title>
+    <style>
+        body { margin: 0; background: #050505; overflow: hidden; }
+        canvas { display: block; }
+        #start-audio { position: absolute; top: 20px; left: 20px; background: rgba(236,0,0,0.8); color: white; padding: 10px 20px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; z-index: 100; }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+    <button id="start-audio" onclick="initAudio()">ACTIVAR MICRÓFONO PARA BAILE</button>
+    <canvas id="worldCanvas"></canvas>
+    
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyCC_TF76FJatTPEMjZTzC9eiStnsrDd1qc", authDomain: "jungle-multiverse.firebaseapp.com", databaseURL: "https://jungle-multiverse-default-rtdb.firebaseio.com", projectId: "jungle-multiverse", storageBucket: "jungle-multiverse.firebasestorage.app", messagingSenderId: "648498270563", appId: "1:648498270563:web:76384ba26c1ca4e38d8356" };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const canvas = document.getElementById('worldCanvas');
+        const ctx = canvas.getContext('2d');
+        let avatars = []; let particles = [];
+        let globalState = { frozen: false, formation: false, spinAll: false, shiver: false, earthRotation: false, parade: false, meteorShower: false, colorInvasion: false, zoomTargetId: null };
+
+        let audioContext, analyser, dataArray;
+        let beatPulse = 0;
+
+        async function initAudio() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 256;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                document.getElementById('start-audio').style.display = 'none';
+            } catch(e) { console.warn("Micrófono denegado."); }
+        }
+
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize); resize();
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.vx = (Math.random() - 0.5) * 10; this.vy = (Math.random() - 0.5) * 10;
+                this.life = 1.0;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= 0.05; }
+            draw() { ctx.fillStyle = this.color; ctx.globalAlpha = this.life; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; }
+        }
+
+        class Avatar {
+            constructor(data, id, index) {
+                this.id = id; this.paths = data.paths || []; this.name = data.userName || "";
+                this.message = data.message || ""; this.messageTime = data.messageTime || 0;
+                this.isSpinning = data.isSpinning || false; this.isStarPower = data.isStarPower || false;
+                this.isShaking = data.isShaking || false;
+                
+                this.x = Math.random() * (canvas.width - 300) + 150; 
+                this.y = Math.random() * (canvas.height - 300) + 150;
+                const angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * (Math.random() * 2 + 2); 
+                this.vy = Math.sin(angle) * (Math.random() * 2 + 2);
+                
+                this.rotation = 0; this.yRotationAngle = 0; this.index = index;
+                this.radarTimer = 0; this.lastRadarPing = 0;
+                this.spawnTimer = 1.0; 
+
+                this.offscreen = document.createElement('canvas');
+                this.offscreen.width = 300; this.offscreen.height = 350;
+                this.renderToBuffer();
+            }
+
+            renderToBuffer() {
+                const bCtx = this.offscreen.getContext('2d');
+                bCtx.lineWidth = 6; bCtx.lineCap = 'round'; bCtx.lineJoin = 'round';
+                this.paths.forEach(path => {
+                    bCtx.strokeStyle = path.color || '#EC0000'; bCtx.beginPath();
+                    if(path.points && path.points.length > 0) {
+                        bCtx.moveTo(path.points[0].x, path.points[0].y);
+                        path.points.forEach(p => bCtx.lineTo(p.x, p.y));
+                    }
+                    bCtx.stroke();
+                });
+            }
+
+            update() {
+                if(this.spawnTimer > 0) this.spawnTimer -= 0.02;
+
+                if (globalState.zoomTargetId === this.id) {
+                    this.x += (canvas.width / 2 - this.x) * 0.1; this.y += (canvas.height / 2 - this.y) * 0.1;
+                    return;
+                }
+
+                if (globalState.parade) {
+                    const rowHeight = canvas.height / 4; const row = this.index % 4;
+                    this.y += (row * rowHeight + rowHeight/2 - this.y) * 0.05;
+                    this.x += (2 + row); if (this.x > canvas.width + 150) this.x = -150;
+                } else if (globalState.formation) {
+                    let cols = Math.max(1, Math.ceil(Math.sqrt(avatars.length)));
+                    let tx = (this.index % cols) * (canvas.width/cols) + (canvas.width/cols/2);
+                    let ty = Math.floor(this.index/cols) * (canvas.height/cols) + (canvas.height/cols/2);
+                    this.x += (tx - this.x) * 0.1; this.y += (ty - this.y) * 0.1;
+                } else if (!globalState.frozen) {
+                    this.x += this.vx; this.y += this.vy;
+                    const margin = 100; 
+                    if (this.x < margin) { this.x = margin; this.vx *= -1; }
+                    if (this.x > canvas.width - margin) { this.x = canvas.width - margin; this.vx *= -1; }
+                    if (this.y < margin) { this.y = margin; this.vy *= -1; }
+                    if (this.y > canvas.height - margin) { this.y = canvas.height - margin; this.vy *= -1; }
+                }
+
+                if(globalState.earthRotation) this.yRotationAngle += 0.05;
+                if(this.isShaking) { this.rotation += 0.3; particles.push(new Particle(this.x, this.y, '#E89C31')); } 
+                else if(this.isSpinning || globalState.spinAll) { this.rotation += 0.1; }
+
+                if(this.radarTimer > 0) this.radarTimer -= 0.02;
+            }
+
+            draw() {
+                let drawX = this.x; let drawY = this.y;
+                if(globalState.shiver) { drawX += (Math.random() - 0.5) * 10; drawY += (Math.random() - 0.5) * 10; }
+
+                ctx.save(); ctx.translate(drawX, drawY);
+                
+                if(this.spawnTimer > 0) {
+                    ctx.scale(1 - this.spawnTimer, 1 - this.spawnTimer);
+                    ctx.beginPath(); ctx.arc(0, 0, 200 * this.spawnTimer, 0, Math.PI*2);
+                    ctx.strokeStyle = `rgba(0, 255, 136, ${this.spawnTimer})`; ctx.lineWidth = 10; ctx.stroke();
+                }
+
+                if(this.radarTimer > 0) {
+                    ctx.beginPath(); ctx.arc(0, 0, 150 + Math.sin(Date.now()*0.02)*40, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(232, 156, 49, ${this.radarTimer})`; ctx.fill();
+                }
+
+                if(globalState.zoomTargetId === this.id) ctx.scale(2.5, 2.5);
+                if(globalState.earthRotation) ctx.scale(Math.cos(this.yRotationAngle), 1);
+                ctx.scale(1 + beatPulse, 1 + beatPulse); ctx.rotate(this.rotation);
+
+                if(globalState.colorInvasion) { ctx.shadowBlur = 40; ctx.shadowColor = '#EC0000'; }
+                else if(this.isStarPower) { ctx.shadowBlur = 20; ctx.shadowColor = `hsl(${(Date.now() / 5) % 360}, 100%, 60%)`; }
+
+                ctx.drawImage(this.offscreen, -150, -175); ctx.shadowBlur = 0;
+
+                ctx.fillStyle = "white"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
+                ctx.fillText(this.name.toUpperCase(), 0, 190);
+                ctx.restore();
+                
+                if (this.message !== "" && (Date.now() - this.messageTime) < 6000) {
+                    ctx.save(); ctx.translate(drawX, drawY);
+                    ctx.fillStyle = "white"; ctx.beginPath();
+                    const bW = 140; const bH = 40; const r = 10; const bX = -bW/2; const bY = -230;
+                    ctx.moveTo(bX + r, bY);
+                    ctx.arcTo(bX + bW, bY, bX + bW, bY + bH, r); ctx.arcTo(bX + bW, bY + bH, bX, bY + bH, r);
+                    ctx.arcTo(bX, bY + bH, bX, bY, r); ctx.arcTo(bX, bY, bX + bW, bY, r); ctx.closePath(); ctx.fill();
+                    
+                    ctx.fillStyle = "black"; ctx.font = "14px Arial"; ctx.textAlign = "center";
+                    ctx.fillText(this.message, 0, -205); ctx.restore();
+                }
+            }
+        }
+
+        // --- CONEXIÓN A LA CARPETA STREAMING ---
+        const ROOT_NODE = 'avatars_streaming'; 
+
+        database.ref(ROOT_NODE).on('child_added', (snap) => avatars.push(new Avatar(snap.val(), snap.key, avatars.length)));
+        database.ref(ROOT_NODE).on('child_changed', (snap) => {
+            const a = avatars.find(i => i.id === snap.key);
+            if(a) { 
+                const data = snap.val();
+                a.message = data.message; a.messageTime = data.messageTime; 
+                a.isSpinning = data.isSpinning; a.isStarPower = data.isStarPower; a.isShaking = data.isShaking;
+                if(data.radarPing && data.radarPing !== a.lastRadarPing) { a.lastRadarPing = data.radarPing; a.radarTimer = 1.5; }
+            }
+        });
+        database.ref(ROOT_NODE).on('value', (snap) => { if(!snap.exists()) avatars = []; });
+        
+        database.ref('gameState').on('value', (snap) => { 
+            if(snap.exists()) {
+                const val = snap.val();
+                globalState.frozen = val.frozen || false;
+                globalState.formation = val.formation || false;
+                globalState.spinAll = val.spinAll || false;
+                globalState.shiver = val.shiver || false;
+                globalState.earthRotation = val.earthRotation || false;
+                globalState.parade = val.parade || false;
+                globalState.meteorShower = val.meteorShower || false;
+                globalState.colorInvasion = val.colorInvasion || false;
+                globalState.zoomTargetId = val.zoomTargetId || null;
+            }
+        });
+
+        let meteors = [];
+
+        function animate() {
+            ctx.fillStyle = globalState.colorInvasion ? 'rgba(20, 0, 0, 0.4)' : 'rgba(5, 5, 5, 0.4)'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if(analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0; for(let i=0; i<10; i++) sum += dataArray[i];
+                beatPulse = (sum / 10) / 550;
+            }
+
+            if(globalState.meteorShower && Math.random() < 0.1) { meteors.push({x: Math.random()*canvas.width, y: -50, vx: 5, vy: 15, size: Math.random()*5+2}); }
+            meteors.forEach((m, i) => {
+                m.x += m.vx; m.y += m.vy;
+                ctx.fillStyle = '#EC0000'; ctx.beginPath(); ctx.arc(m.x, m.y, m.size, 0, Math.PI*2); ctx.fill();
+                if(m.y > canvas.height) meteors.splice(i, 1);
+            });
+
+            avatars.forEach(a => { a.update(); a.draw(); });
+            particles.forEach((p, i) => { p.update(); p.draw(); if(p.life <= 0) particles.splice(i, 1); });
+            requestAnimationFrame(animate);
+        }
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
