@@ -7,7 +7,7 @@
     <style>
         body { margin: 0; background: #0a0a0a; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
         .panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 90%; max-width: 450px; }
-        h2 { color: #EC0000; text-align: center; }
+        h2 { color: #EC0000; text-align: center; margin-top: 0; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
         button { padding: 12px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: #333; color: white; transition: 0.2s; }
         button.active { background: #EC0000; transform: scale(0.98); }
@@ -19,9 +19,9 @@
 </head>
 <body>
     <div class="panel">
-        <h2>CONTROL MASTER EVENTO</h2>
+        <h2>CONTROL MASTER V7</h2>
         
-        <p style="text-align:center; font-size: 0.9rem;">FÍSICAS (Afecta ambas salas)</p>
+        <p style="text-align:center; font-size: 0.9rem;">FÍSICAS GLOBALES</p>
         <div class="grid">
             <button id="frozen" onclick="toggle('frozen')">CONGELAR</button>
             <button id="formation" onclick="toggle('formation')">FORMACIÓN</button>
@@ -79,12 +79,21 @@
 
         function toggle(key) { database.ref('gameState').update({ [key]: !currentState[key] }); }
         function applyZoom() { database.ref('gameState').update({ zoomTargetId: document.getElementById('user-list').value || null }); }
+        
         function resetAll() { 
-            if(confirm("¿VACIAR AMBAS SALAS DEL MULTIVERSO?")) { 
-                database.ref('avatars_presencial').remove(); 
-                database.ref('avatars_streaming').remove(); 
-                database.ref('gameState').set({}); 
-                setTimeout(fetchUsers, 1000); 
+            if(confirm("¿Estás seguro de VACIAR ambas salas del Multiverso?")) { 
+                
+                // Ejecutamos los borrados simultáneamente y confirmamos al usuario
+                Promise.all([
+                    database.ref('avatars_presencial').remove(),
+                    database.ref('avatars_streaming').remove(),
+                    database.ref('gameState').set({})
+                ]).then(() => {
+                    alert("✅ MULTIVERSO BORRADO CON ÉXITO.\n\nRecuerda: Las colecciones volverán a aparecer en Firebase en cuanto alguien envíe un dibujo nuevo.");
+                    setTimeout(fetchUsers, 500); 
+                }).catch((error) => {
+                    alert("❌ Hubo un error al borrar: " + error.message);
+                });
             } 
         }
     </script>
