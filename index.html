@@ -9,9 +9,9 @@
         .glass-panel { background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; width: 90%; max-width: 350px; margin-top: 15px; z-index: 10; }
         
         #name-popup { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        .input-field { padding: 15px; font-size: 1.2rem; border-radius: 14px; border: 2px solid #EC0000; margin-bottom: 15px; width: 80%; text-align: center; background: white; color: #1a1a1a; font-weight: bold; outline: none; }
-        select.input-field { appearance: none; }
-        .btn-primary { padding: 16px 45px; background: #EC0000; color: white; border: none; border-radius: 14px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
+        .input-field { padding: 15px; font-size: 1.1rem; border-radius: 14px; border: 2px solid #EC0000; margin-bottom: 15px; width: 80%; text-align: center; background: white; color: #1a1a1a; font-weight: bold; outline: none; }
+        
+        .btn-primary { padding: 16px 30px; background: #EC0000; color: white; border: none; border-radius: 14px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
 
         .tools-panel { display: flex; gap: 12px; margin-bottom: 15px; }
         .color-btn { width: 38px; height: 38px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: 0.2s; }
@@ -24,7 +24,6 @@
         
         .controls { width: 100%; margin-top: 15px; display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
         .btn-controls { padding: 14px; border: none; border-radius: 14px; font-weight: bold; cursor: pointer; font-size: 1rem; color: white; transition: 0.2s; }
-        .btn-controls:active { transform: scale(0.95); }
 
         #interaction-view { display: none; }
         .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
@@ -47,10 +46,12 @@
 
     <div id="name-popup">
         <h1 style="color: #EC0000; margin-bottom: 5px;">MULTIVERSO</h1>
+        
         <select id="mode-select" class="input-field">
-            <option value="presencial">Evento (Presencial)</option>
-            <option value="streaming">En Casa (Streaming)</option>
+            <option value="presencial">🏢 Estoy en el Evento (Presencial)</option>
+            <option value="streaming">💻 Estoy en Casa (Streaming)</option>
         </select>
+        
         <input type="text" id="name-input" class="input-field" placeholder="Tu Apodo" maxlength="12">
         <button class="btn-primary" onclick="initApp()">COMENZAR</button>
     </div>
@@ -111,9 +112,11 @@
 
         function initApp() {
             const input = document.getElementById('name-input');
-            if(input.value.trim() === "") { alert("Ingresa tu apodo"); return; }
+            const select = document.getElementById('mode-select');
+            if(input.value.trim() === "") { alert("Ingresa tu apodo para continuar."); return; }
+            
             userName = input.value.trim();
-            currentMode = document.getElementById('mode-select').value;
+            currentMode = select.value; // Captura 'presencial' o 'streaming'
             
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 DeviceMotionEvent.requestPermission()
@@ -194,6 +197,7 @@
 
             setTimeout(() => {
                 const drawingData = { paths, userName, timestamp: Date.now(), message: "", isSpinning: false, isStarPower: false, isShaking: false, radarPing: 0 };
+                // Envía dinámicamente a la ruta elegida en el menú desplegable
                 myAvatarRef = database.ref('avatars_' + currentMode).push();
                 myAvatarRef.set(drawingData).then(() => {
                     document.getElementById('ar-overlay').src = canvas.toDataURL();
